@@ -11,6 +11,7 @@ const TransitionContext = createContext<Ctx>({ navigate: () => {} })
 export const useTransition = () => useContext(TransitionContext)
 
 const BANDS = 6
+const norm = (p: string) => p.replace(/\/+$/, '') || '/'
 const GLYPH = lemniscatePath(120, 48)
 
 /**
@@ -23,12 +24,15 @@ export function TransitionProvider({ children }: { children: React.ReactNode }) 
   const root = useRef<HTMLDivElement>(null)
   const label = useRef<HTMLSpanElement>(null)
   const pending = useRef<{ resolve: () => void; target: string } | null>(null)
+  // usePathname() is basePath-free; compare against it, never window.location (which includes /<repo>/)
+  const current = useRef(pathname)
   const busy = useRef(false)
 
   // resolve the pending navigation once the new route has committed
   useEffect(() => {
+    current.current = pathname
     const p = pending.current
-    if (p && pathname === p.target) {
+    if (p && norm(pathname) === norm(p.target)) {
       pending.current = null
       p.resolve()
     }
@@ -45,8 +49,8 @@ export function TransitionProvider({ children }: { children: React.ReactNode }) 
 
   const navigate = useCallback(
     (href: string, text = '') => {
-      const url = new URL(href, window.location.href)
-      const samePath = url.pathname === window.location.pathname
+      const url = new URL(href, window.location.origin + current.current)
+      const samePath = norm(url.pathname) === norm(current.current)
       if (samePath) {
         if (url.hash) getLenis()?.scrollTo(url.hash, { duration: 1.6 }) ?? document.querySelector(url.hash)?.scrollIntoView()
         return

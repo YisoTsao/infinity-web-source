@@ -3,9 +3,10 @@ import { gsap, ScrollTrigger, SplitText } from '@/motion/gsap'
 import { MQ } from '@/motion/ready'
 import { useSection } from '@/hooks/useSection'
 import { ImageSequence } from './ImageSequence'
+import { asset } from '@/lib/asset'
 
 const FRAMES = 96
-const URLS = Array.from({ length: FRAMES }, (_, i) => `/sequence/f${String(i).padStart(3, '0')}.jpg`)
+const URLS = Array.from({ length: FRAMES }, (_, i) => asset(`/sequence/f${String(i).padStart(3, '0')}.jpg`))
 
 const CALLOUTS = [
   { k: 'One surface.', spec: 'Non-orientable · χ = 0', zh: '只有一個面。', side: 'left' },
