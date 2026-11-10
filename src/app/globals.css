@@ -1,0 +1,272 @@
+@import "tailwindcss";
+
+/* ── Design tokens (ART_DIRECTION.md) ─────────────────────────────── */
+@theme {
+  --color-ink: #0B0B0D;
+  --color-bone: #ECE8DF;
+  --color-signal: #C8FF2E;
+  --color-infra: #FF4A1C;
+  --color-graphite: #2A2A2E;
+  --color-fog-ink: #8A8780;  /* muted text on ink  (≈5:1) */
+  --color-fog-bone: #5E5B55; /* muted text on bone (≈5.6:1) */
+
+  --font-display: var(--font-syne), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-iserif), ui-serif, Georgia, serif;
+  --font-mono: var(--font-jbmono), ui-monospace, monospace;
+
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+}
+
+:root {
+  --bg: var(--color-ink);
+  --fg: var(--color-bone);
+  --frame: clamp(16px, 4vw, 64px);
+  color-scheme: dark;
+}
+
+html { background: var(--bg); color: var(--fg); }
+body {
+  font-family: var(--font-display);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: clip;
+}
+
+::selection { background: var(--color-signal); color: var(--color-ink); }
+
+:focus-visible {
+  outline: 2px solid var(--color-signal);
+  outline-offset: 4px;
+}
+
+@layer components {
+/* ── Typography system ─────────────────────────────────────────────── */
+.mega {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(2.6rem, 12.6vw, 17rem);
+  line-height: 0.82;
+  letter-spacing: -0.045em;
+}
+.display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(2.75rem, 8vw, 9rem);
+  line-height: 0.92;
+  letter-spacing: -0.035em;
+}
+.title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(1.75rem, 3.4vw, 3.5rem);
+  line-height: 1;
+  letter-spacing: -0.025em;
+}
+.emotive {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  padding-right: 0.06em;
+}
+.meta {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.zh {
+  font-family: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+  font-size: clamp(0.9rem, 1vw, 1rem);
+  line-height: 1.7;
+  letter-spacing: 0.02em;
+}
+
+.frame-x { padding-inline: var(--frame); }
+
+/* generic overflow mask for entrance slides */
+.mask { overflow: clip; display: block; }
+.mask > * { display: block; }
+
+/* SplitText masks: extra room so Syne overshoots are not clipped */
+.ch-mask { padding-block: 0.04em; margin-block: -0.04em; }
+.wd-mask { padding-block: 0.08em; margin-block: -0.08em; }
+
+/* ── Pre-paint intro state (removed by the hero timeline) ─────────── */
+html.intro-pending [data-nav-item],
+html.intro-pending [data-intro-up],
+html.intro-pending [data-tagline],
+html.intro-pending .word { visibility: hidden; }
+
+/* ── Hero ──────────────────────────────────────────────────────────── */
+.origin { height: 200svh; }
+html[data-motion="off"] .origin { height: 100svh; }
+
+.word-layer {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.word { user-select: none; }
+.word--outline { color: transparent; -webkit-text-stroke: 1.5px var(--color-bone); }
+.word--solid { color: var(--color-bone); }
+
+/* registration marks — the instrument frame */
+.reg {
+  position: absolute;
+  z-index: 25;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  --c: color-mix(in oklab, var(--color-bone) 55%, transparent);
+  background:
+    linear-gradient(var(--c), var(--c)) center / 1px 100% no-repeat,
+    linear-gradient(var(--c), var(--c)) center / 100% 1px no-repeat;
+}
+.reg--tl { top: calc(var(--frame) * 0.6 + 56px); left: calc(var(--frame) * 0.6); }
+.reg--tr { top: calc(var(--frame) * 0.6 + 56px); right: calc(var(--frame) * 0.6); }
+.reg--bl { bottom: calc(var(--frame) * 0.6); left: calc(var(--frame) * 0.6); }
+.reg--br { bottom: calc(var(--frame) * 0.6 + 40px); right: calc(var(--frame) * 0.6); }
+
+.scroll-indicator { color: var(--color-bone); }
+.scroll-indicator__ring { animation: spin 18s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.logo-mark path { stroke-dasharray: 1 0; }
+.nav-link { position: relative; }
+.nav-link::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: -4px;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+}
+.nav-link:hover::after, .nav-link:focus-visible::after { transform: scaleX(1); transform-origin: left; }
+.motion-toggle[aria-pressed="false"] { opacity: 0.6; }
+
+.skip-link {
+  position: fixed; left: 16px; top: -48px; z-index: 100;
+  padding: 10px 14px; background: var(--color-signal); color: var(--color-ink);
+}
+.skip-link:focus { top: 16px; }
+
+
+/* ── Sections ──────────────────────────────────────────────────────── */
+.manifesto__words .mw { font-variation-settings: 'wght' var(--wght, 800); }
+.manifesto__words em .mw, .manifesto__words .emotive { font-variation-settings: normal; }
+
+.mask-word {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(5rem, 24vw, 26rem);
+  line-height: 0.8;
+  letter-spacing: -0.05em;
+  color: transparent;
+  background-size: 120% auto;
+  background-position: 50% 0%;
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.frame-marks::before, .frame-marks::after {
+  content: ""; position: absolute; z-index: 2; width: 10px; height: 10px; pointer-events: none;
+  border-color: var(--color-bone); opacity: 0.7;
+}
+.frame-marks::before { left: 6px; top: 6px; border-left: 1px solid; border-top: 1px solid; }
+.frame-marks::after { right: 6px; bottom: 6px; border-right: 1px solid; border-bottom: 1px solid; }
+
+.word--outline-ink { color: transparent; -webkit-text-stroke: 1.5px var(--color-ink); }
+
+.gallery-card [data-fig] {
+  clip-path: inset(calc(12% * (1 - var(--reveal, 1))) calc(50% * (1 - var(--reveal, 1))));
+}
+.gallery-card.gl-ready .gallery-card__img { opacity: 0; }
+
+.form-dot { width: 28px; height: 2px; background: color-mix(in oklab, var(--color-bone) 25%, transparent); transition: background-color .4s, width .4s; }
+.form-dot.is-active { width: 56px; background: var(--color-signal); }
+
+.process-panel { --panel-bg: #0B0B0D; --panel-fg: #ECE8DF; background: var(--panel-bg); color: var(--panel-fg); }
+
+.kinetic-grid {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(3.4rem, 15vw, 17rem);
+  line-height: 0.86;
+  letter-spacing: -0.04em;
+}
+.kinetic-char { font-variation-settings: 'wght' var(--wght, 800); }
+
+.menu-btn__icon { position: relative; display: inline-block; width: 22px; height: 10px; }
+.menu-btn__icon span { position: absolute; left: 0; right: 0; height: 1.5px; background: currentColor; transition: transform .5s cubic-bezier(.19,1,.22,1), top .5s cubic-bezier(.19,1,.22,1); }
+.menu-btn__icon span:first-child { top: 0; }
+.menu-btn__icon span:last-child { top: 8.5px; }
+.menu-btn__icon.is-open span:first-child { top: 4px; transform: rotate(45deg); }
+.menu-btn__icon.is-open span:last-child { top: 4px; transform: rotate(-45deg); }
+
+.carousel:focus-visible { outline-offset: -4px; }
+.carousel-card { will-change: transform; }
+
+/* ── Grain (effect ⑩) ──────────────────────────────────────────────── */
+.grain { opacity: 0; transition: opacity 1.2s ease; mix-blend-mode: overlay; }
+html.grain-on .grain { opacity: 0.14; }
+.grain__tile {
+  position: absolute;
+  inset: -100%;
+  background-size: 256px 256px;
+  animation: grain 0.48s steps(6) infinite;
+}
+@keyframes grain {
+  0% { transform: translate(0, 0); }
+  17% { transform: translate(-7%, 4%); }
+  33% { transform: translate(5%, -9%); }
+  50% { transform: translate(-11%, -3%); }
+  67% { transform: translate(9%, 8%); }
+  83% { transform: translate(-3%, 11%); }
+  100% { transform: translate(0, 0); }
+}
+@media (max-width: 767px) { html.grain-on .grain { opacity: 0.1; } }
+
+/* ── Custom cursor ─────────────────────────────────────────────────── */
+html.has-cursor, html.has-cursor a, html.has-cursor button { cursor: none; }
+html.has-cursor input, html.has-cursor textarea, html.has-cursor [contenteditable] { cursor: auto; }
+
+.cursor { position: fixed; inset: 0; z-index: 60; pointer-events: none; mix-blend-mode: difference; opacity: 0; transition: opacity 0.4s; }
+.cursor.is-on { opacity: 1; }
+html.cursor-out .cursor { opacity: 0; }
+.cursor__dot, .cursor__ring { position: absolute; left: 0; top: 0; will-change: transform; }
+.cursor__dot-shape, .cursor__ring-shape {
+  position: absolute;
+  left: 0; top: 0;
+  border-radius: 999px;
+  translate: -50% -50%;
+  transition: width 0.35s cubic-bezier(0.19, 1, 0.22, 1), height 0.35s cubic-bezier(0.19, 1, 0.22, 1), opacity 0.25s, background-color 0.25s;
+}
+.cursor__dot-shape { width: 6px; height: 6px; background: var(--color-signal); }
+.cursor__ring-shape { width: 36px; height: 36px; border: 1px solid var(--color-bone); }
+html[data-cursor-state="link"] .cursor__ring-shape { width: 64px; height: 64px; }
+html[data-cursor-state="link"] .cursor__dot-shape { opacity: 0; }
+html[data-cursor-state="hidden"] .cursor__ring-shape { opacity: 0; }
+html[data-cursor-state="view"] .cursor__ring-shape { width: 96px; height: 96px; background: var(--color-bone); }
+html[data-cursor-state="view"] .cursor__dot-shape { opacity: 0; }
+html[data-cursor-state="view"] .cursor__ring::after { content: "VIEW"; position: absolute; translate: -50% -50%; font: 500 11px/1 var(--font-mono); letter-spacing: .1em; color: var(--color-ink); }
+html[data-cursor-state="drag"] .cursor__ring-shape { width: 80px; height: 80px; }
+html[data-cursor-state="drag"] .cursor__ring::after { content: "← →"; position: absolute; translate: -50% -50%; font: 500 11px/1 var(--font-mono); color: var(--color-bone); }
+html[data-cursor-state="text"] .cursor__ring-shape { width: 2px; height: 24px; border-radius: 0; background: var(--color-bone); }
+
+/* ── Reduced motion ────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .grain__tile, .scroll-indicator__ring { animation: none; }
+}
+html[data-motion="off"] .grain__tile,
+html[data-motion="off"] .scroll-indicator__ring { animation: none; }
+
+}
