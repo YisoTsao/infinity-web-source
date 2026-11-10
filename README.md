@@ -25,3 +25,15 @@ COMPONENT_ARCHITECTURE, PERFORMANCE_GUIDELINES, CREATIVE_DIRECTIONS.
 | `src/gl/particles/*` | particle Möbius (ShaderMaterial, all motion in vertex shader) |
 | `src/gl/geometry/mobius.ts` | parametric strip + seeded particle buffers |
 | `src/components/motion/Magnetic.tsx` | magnetic wrapper (two-layer ownership) |
+
+## Deploy (GitHub Pages)
+The site is a static export (`output: "export"` in `next.config.ts`). Pushing to `master` runs
+`.github/workflows/deploy-pages.yml`, which builds with `NEXT_PUBLIC_BASE_PATH=/<repo>` and publishes `out/`.
+Repo setting: **Settings → Pages → Source: GitHub Actions**.
+
+Local check of the Pages build:
+```bash
+NEXT_PUBLIC_BASE_PATH=/infinity-web-source npm run build
+mkdir -p /tmp/site && cp -r out /tmp/site/infinity-web-source && npx serve /tmp/site   # open /infinity-web-source/
+```
+Files in `public/` must be referenced through `asset()` from `src/lib/asset.ts` so they get the subpath.
