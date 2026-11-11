@@ -28,8 +28,8 @@ export const BODIES: Record<string, Body> = {
   mercury: { id: 'mercury', kind: 'rocky', pos: [-20, 4, -260], radius: 3, colors: ['#3d3a38', '#77716a', '#b3aca2'], seed: 2, spin: 0.05 },
   venus: { id: 'venus', kind: 'venus', pos: [25, -6, -520], radius: 5, colors: ['#a8742c', '#e3b867', '#fbe7b5'], atmo: '#ffd59a', atmoStrength: 1.2, seed: 3, spin: 0.01 },
   earth: { id: 'earth', kind: 'earth', pos: [-30, 5, -800], radius: 5.5, colors: ['#0b2a5a', '#2f7d45', '#d9cfa8'], atmo: '#5fa8ff', atmoStrength: 1.4, seed: 4, spin: 0.06, tilt: 0.41 },
-  moon: { id: 'moon', kind: 'rocky', pos: [-30, 5, -800], radius: 1.5, colors: ['#4a4846', '#8d8a85', '#c9c5be'], seed: 9, spin: 0.02 },
-  mars: { id: 'mars', kind: 'rocky', pos: [28, -4, -1080], radius: 4, colors: ['#5a1f0e', '#b5512a', '#e39a6a'], atmo: '#ff9a6a', atmoStrength: 0.5, seed: 5, spin: 0.06, tilt: 0.44 },
+  moon: { id: 'moon', kind: 'rocky', pos: [-30, 5, -800], radius: 1.5, colors: ['#34322f', '#8d8a85', '#c9c5be'], seed: 9, spin: 0.02 },
+  mars: { id: 'mars', kind: 'rocky', pos: [28, -4, -1080], radius: 4, colors: ['#5a1f0e', '#b5512a', '#e39a6a'], atmo: '#ff9a6a', atmoStrength: 0.25, seed: 5, spin: 0.06, tilt: 0.44 },
   jupiter: { id: 'jupiter', kind: 'gas', pos: [-40, 0, -1750], radius: 22, colors: ['#7a4e32', '#d4a373', '#f3e3c6'], atmo: '#f5d8a8', atmoStrength: 0.6, seed: 6, spin: 0.08, tilt: 0.05 },
   saturn: {
     id: 'saturn', kind: 'gas', pos: [45, 8, -2150], radius: 18, colors: ['#8a6a3e', '#d9bf8a', '#f6ead0'], atmo: '#f7e2b0', atmoStrength: 0.5, seed: 7, spin: 0.07, tilt: 0.47,
@@ -40,7 +40,7 @@ export const BODIES: Record<string, Body> = {
     rings: { inner: 1.6, outer: 2.0, opacity: 0.35, tint: '#c9e9ee' },
   },
   neptune: { id: 'neptune', kind: 'ice', pos: [30, 4, -2850], radius: 10, colors: ['#10257a', '#2f5fd0', '#8fb3ff'], atmo: '#6f9bff', atmoStrength: 1.2, seed: 10, spin: 0.07, tilt: 0.49 },
-  pluto: { id: 'pluto', kind: 'rocky', pos: [0, 0, -3150], radius: 2.5, colors: ['#4b3a2c', '#a88a6c', '#efe1cf'], seed: 11, spin: 0.03, tilt: 2.1 },
+  pluto: { id: 'pluto', kind: 'rocky', pos: [0, 0, -3150], radius: 2.5, colors: ['#4b3a2c', '#a88a6c', '#efe1cf'], atmo: '#7fa6ff', atmoStrength: 0.35, seed: 11, spin: 0.03, tilt: 2.1 },
 }
 
 /** Asteroid belt slab (between Mars and Jupiter). */
