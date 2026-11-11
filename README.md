@@ -37,3 +37,8 @@ NEXT_PUBLIC_BASE_PATH=/infinity-web-source npm run build
 mkdir -p /tmp/site && cp -r out /tmp/site/infinity-web-source && npx serve /tmp/site   # open /infinity-web-source/
 ```
 Files in `public/` must be referenced through `asset()` from `src/lib/asset.ts` so they get the subpath.
+
+## Texture credits (ORBIT ∞ page)
+- Earth day map: NASA Visible Earth, *Blue Marble* (public domain), via [three-globe](https://github.com/vasturiano/three-globe) examples.
+- Earth topography, water mask, city lights, clouds and the Moon map: [three.js](https://github.com/mrdoob/three.js) example planet textures (based on NASA imagery).
+- Everything else (Sun, Mercury, Venus, Mars, gas and ice giants, rings) is generated procedurally in shaders.

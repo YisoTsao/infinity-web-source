@@ -8,7 +8,8 @@ import { cosmosState } from '@/stores/cosmos'
 import { useUI, selectReduced, type Tier } from '@/stores/ui'
 import { pointer } from '@/motion/pointer'
 import { frameAt, chapterAt, type Frame } from './shots'
-import { SURFACE_VERT, SURFACE_FRAG, CLOUD_FRAG, SUN_FRAG, FLAME_VERT, FLAME_FRAG, HALO2_FRAG, BODY_ID } from './surfaces'
+import { asset } from '@/lib/asset'
+import { SURFACE_VERT, SURFACE_FRAG, EARTH_FRAG, EARTH_CLOUD_FRAG, SUN_FRAG, FLAME_VERT, FLAME_FRAG, HALO2_FRAG, BODY_ID } from './surfaces'
 import {
   PLANET_VERT, RING_VERT, RING_FRAG, STAR_VERT, STAR_FRAG, NEBULA_FRAG,
   DUST_VERT, DUST_POINT_FRAG, DUST_LINE_FRAG, METEOR_VERT, METEOR_FRAG,
@@ -346,6 +347,8 @@ function planetMaterial(b: Body) {
       uAtmoK: { value: b.atmoStrength ?? 0 },
       uSpot: { value: spot ? new THREE.Vector4(...new THREE.Vector3(...spot.dir).normalize().toArray(), spot.size) : new THREE.Vector4(0, 0, 1, 0) },
       uSpotCol: { value: new THREE.Color(spot?.color ?? '#000000') },
+      uMap: { value: null },
+      uHasMap: { value: 0 },
       uCenter: { value: new THREE.Vector3(...b.pos) },
       uRingN: { value: ringN },
       uRing: { value: b.id === 'saturn' && b.rings ? new THREE.Vector2(b.rings.inner * b.radius, b.rings.outer * b.radius) : new THREE.Vector2(0, 0) },
@@ -353,25 +356,62 @@ function planetMaterial(b: Body) {
   })
 }
 
-function Planet({ body, sphere }: { body: Body; sphere: THREE.BufferGeometry }) {
+// Real maps: NASA Blue Marble / Black Marble (public domain) and three.js example planet textures.
+const loader = typeof window !== 'undefined' ? new THREE.TextureLoader() : null
+function tex(path: string, srgb: boolean, aniso: number) {
+  const t = loader!.load(asset(path))
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace
+  t.anisotropy = aniso
+  return t
+}
+
+function earthMaterials(hi: boolean, aniso: number) {
+  const k = hi ? '4k' : '2k'
+  const clouds = tex('/textures/earth-clouds-2k.webp', false, aniso)
+  const shared = { uSun: { value: SUN }, uCloudShift: { value: 0 } }
+  const surface = new THREE.ShaderMaterial({
+    vertexShader: SURFACE_VERT,
+    fragmentShader: EARTH_FRAG,
+    uniforms: {
+      ...shared,
+      uDay: { value: tex(`/textures/earth-day-${k}.webp`, true, aniso) },
+      uNight: { value: tex('/textures/earth-lights-2k.webp', true, aniso) },
+      uTopo: { value: tex('/textures/earth-topo-2k.webp', false, aniso) },
+      uWater: { value: tex('/textures/earth-water-2k.webp', false, aniso) },
+      uClouds: { value: clouds },
+      uTime: { value: 0 },
+      uR: { value: BODIES.earth.radius },
+      uAtmo: { value: new THREE.Color(BODIES.earth.atmo) },
+      uAtmoK: { value: BODIES.earth.atmoStrength },
+    },
+  })
+  const layer = new THREE.ShaderMaterial({
+    vertexShader: SURFACE_VERT,
+    fragmentShader: EARTH_CLOUD_FRAG,
+    uniforms: { ...shared, uClouds: { value: clouds } },
+    transparent: true,
+    depthWrite: false,
+    premultipliedAlpha: true,
+    blending: THREE.CustomBlending,
+    blendSrc: THREE.OneFactor,
+    blendDst: THREE.OneMinusSrcAlphaFactor,
+  })
+  return { surface, layer, maps: [surface.uniforms.uDay.value, surface.uniforms.uNight.value, surface.uniforms.uTopo.value, surface.uniforms.uWater.value, clouds] as THREE.Texture[] }
+}
+
+function Planet({ body, sphere, hi }: { body: Body; sphere: THREE.BufferGeometry; hi: boolean }) {
   const spin = useRef<THREE.Group>(null)
-  const mat = useMemo(() => planetMaterial(body), [body])
+  const aniso = useThree((s) => s.gl.capabilities.getMaxAnisotropy())
+  const earth = useMemo(() => (body.id === 'earth' ? earthMaterials(hi, Math.min(aniso, 8)) : null), [body, hi, aniso])
+  useEffect(() => () => earth?.maps.forEach((m) => m.dispose()), [earth])
+  const mat = useMemo(() => earth?.surface ?? planetMaterial(body), [body, earth])
   const clouds = useMemo(() => {
-    if (body.id !== 'earth') return null
-    return new THREE.ShaderMaterial({
-      vertexShader: SURFACE_VERT,
-      fragmentShader: CLOUD_FRAG,
-      uniforms: { uSun: { value: SUN }, uTime: { value: 0 } },
-      transparent: true,
-      depthWrite: false,
-      premultipliedAlpha: true,
-      blending: THREE.CustomBlending,
-      blendSrc: THREE.OneFactor,
-      blendDst: THREE.OneMinusSrcAlphaFactor,
-    })
-  }, [body])
+    if (!earth) return null
+    return earth.layer
+  }, [earth])
   const halo = useMemo(() => {
-    if (!body.atmo) return null
+    // gas giants have no hard surface under a thin shell: their limb glow lives in the surface shader
+    if (!body.atmo || body.kind === 'gas') return null
     return new THREE.ShaderMaterial({
       vertexShader: PLANET_VERT,
       fragmentShader: HALO2_FRAG,
@@ -426,7 +466,7 @@ function Planet({ body, sphere }: { body: Body; sphere: THREE.BufferGeometry }) 
 
   useFrame((state, delta) => {
     mat.uniforms.uTime.value = state.clock.elapsedTime
-    if (clouds) clouds.uniforms.uTime.value = state.clock.elapsedTime
+    if (earth) earth.surface.uniforms.uCloudShift.value = (state.clock.elapsedTime * 0.0012) % 1
     if (spin.current) spin.current.rotation.y += (body.spin ?? 0) * Math.min(delta, 0.05)
   })
 
@@ -444,8 +484,14 @@ function Planet({ body, sphere }: { body: Body; sphere: THREE.BufferGeometry }) 
 
 function Moon({ sphere }: { sphere: THREE.BufferGeometry }) {
   const ref = useRef<THREE.Mesh>(null)
-  const mat = useMemo(() => planetMaterial(BODIES.moon), [])
-  useEffect(() => () => mat.dispose(), [mat])
+  const aniso = useThree((s) => s.gl.capabilities.getMaxAnisotropy())
+  const mat = useMemo(() => {
+    const m = planetMaterial(BODIES.moon)
+    m.uniforms.uMap.value = tex('/textures/moon-1k.webp', true, Math.min(aniso, 8))
+    m.uniforms.uHasMap.value = 1
+    return m
+  }, [aniso])
+  useEffect(() => () => (mat.uniforms.uMap.value?.dispose(), mat.dispose()), [mat])
   const e = BODIES.earth.pos
   useFrame((state) => {
     const a = state.clock.elapsedTime * 0.12 + 2.2
@@ -636,7 +682,7 @@ function World({ tier, reduced, parallax }: { tier: Tier; reduced: boolean; para
       <ambientLight intensity={0.06} />
       <Sun sphere={sphere} />
       {bodies.map((b) => (
-        <Planet key={b.id} body={b} sphere={sphere} />
+        <Planet key={b.id} body={b} sphere={sphere} hi={tier === 'high'} />
       ))}
       <Moon sphere={sphere} />
       <Belt count={q.rocks} />

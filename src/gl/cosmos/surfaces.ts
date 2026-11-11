@@ -69,8 +69,9 @@ float cloudAt(vec3 p,float t){
 
 export const SURFACE_VERT = /* glsl */ `
 uniform vec3 uSun;
-varying vec3 vObj; varying vec3 vN; varying vec3 vWorld; varying vec3 vLobj;
+varying vec3 vObj; varying vec3 vN; varying vec3 vWorld; varying vec3 vLobj; varying vec2 vUv;
 void main(){
+  vUv=uv;
   vObj=normalize(position);
   vN=normalize(mat3(modelMatrix)*normal);
   vec4 w=modelMatrix*vec4(position,1.0);
@@ -87,7 +88,8 @@ uniform vec3 uSun; uniform float uTime; uniform float uSeed; uniform float uR;
 uniform vec3 uAtmo; uniform float uAtmoK;
 uniform vec4 uSpot; uniform vec3 uSpotCol;
 uniform vec3 uCenter; uniform vec3 uRingN; uniform vec2 uRing;
-varying vec3 vObj; varying vec3 vN; varying vec3 vWorld; varying vec3 vLobj;
+uniform sampler2D uMap; uniform float uHasMap;
+varying vec3 vObj; varying vec3 vN; varying vec3 vWorld; varying vec3 vLobj; varying vec2 vUv;
 ${COMMON}
 
 float ringDensity(float r){
@@ -114,19 +116,36 @@ void main(){
     // ── airless: Mercury, Moon, Pluto ───────────────────────────────
     float rim=0.0, fl=0.0;
     float sd=uSeed*17.0;
-    float maria=uId==4?smoothstep(0.05,0.35,fbm(p*1.3+sd)):0.0;
-    float dens=uId==10?0.2:(uId==4?0.62-maria*0.35:0.7);
-    h+=craterLayer(p,3.2,dens*0.7,sd,rim,fl)*1.2;
-    h+=craterLayer(p,7.5,dens,sd+3.0,rim,fl)*0.55;
-    h+=craterLayer(p,17.0,dens,sd+7.0,rim,fl)*0.26;
-    h+=craterLayer(p,36.0,dens,sd+9.0,rim,fl)*0.12;
-    h+=fbm(p*9.0+sd)*0.04;
-    float tone=fbm(p*4.0+sd)*0.5+0.5;
-    col=mix(uB,uC,smoothstep(0.3,0.8,tone));
-    col=mix(col,uA,maria*0.85);
-    col=mix(col,uC*1.08,rim*0.35);
-    col*=1.0-fl*0.08;
-    bumpK=uR*(uId==10?0.035:0.06);
+    // screen-space footprint: octaves finer than ~2 px fade out (no shimmering grain)
+    float fw=length(fwidth(p));
+    float aa1=1.0-smoothstep(0.05,0.18,fw*7.5);
+    float aa2=1.0-smoothstep(0.05,0.18,fw*17.0);
+    float aa3=1.0-smoothstep(0.05,0.18,fw*36.0);
+    if(uId==4&&uHasMap>0.5){
+      // the Moon: real albedo map; relief from albedo + a few large crater bowls
+      vec3 m=texture2D(uMap,vUv,0.8).rgb;
+      m=mix(vec3(dot(m,vec3(0.33))),m,0.6);
+      float lum=dot(textureLod(uMap,vUv,1.5).rgb,vec3(0.3,0.59,0.11));
+      col=m*1.1;
+      h=lum*0.5+craterLayer(p,4.0,0.35,sd,rim,fl)*0.5*aa1;
+      bumpK=uR*0.01;
+    } else {
+      float maria=uId==4?smoothstep(0.05,0.35,fbm(p*1.3+sd)):0.0;
+      float dens=uId==10?0.2:(uId==4?0.62-maria*0.35:0.7);
+      float r0=0.0,r1=0.0,r2=0.0,r3=0.0;
+      h+=craterLayer(p,3.2,dens*0.7,sd,r0,fl)*1.2;
+      h+=craterLayer(p,7.5,dens,sd+3.0,r1,fl)*0.55*aa1;
+      h+=craterLayer(p,17.0,dens,sd+7.0,r2,fl)*0.26*aa2;
+      h+=craterLayer(p,36.0,dens,sd+9.0,r3,fl)*0.12*aa3;
+      rim=max(max(r0,r1*aa1),max(r2*aa2,r3*aa3));
+      h+=fbm(p*9.0+sd)*0.04;
+      float tone=fbm(p*4.0+sd)*0.5+0.5;
+      col=mix(uB,uC,smoothstep(0.3,0.8,tone));
+      col=mix(col,uA,maria*0.85);
+      col=mix(col,uC*1.08,rim*0.25);
+      col*=1.0-fl*0.06;
+      bumpK=uR*(uId==10?0.02:0.025);
+    }
     regolith=1.0;
     if(uId==10){
       // Pluto: bright nitrogen-ice heart, dark reddish equatorial belt, cellular plains
@@ -197,25 +216,65 @@ void main(){
     cshadow=cloudAt(normalize(p+normalize(vLobj)*0.025),uTime);
     bumpK=0.0;
   } else if(uId==6||uId==7){
-    // ── gas giants: differential rotation, turbulent belts ───────────
-    float lat=p.y;
-    float drift=uTime*0.035*(sin(lat*21.0)*0.6+sin(lat*8.0)*0.4);
-    vec3 q=rotY(p,drift);
-    float turb=fbm(q*vec3(3.0,7.0,3.0)+uSeed);
-    float wl=lat+turb*0.035+fbm(q*vec3(5.0,40.0,5.0))*0.012;
-    float f=uId==6?17.0:13.0;
-    float b1=sin(wl*f)*0.5+0.5;
-    float b2=sin(wl*f*2.3+1.3)*0.5+0.5;
-    float b3=sin(wl*f*5.1+0.4)*0.5+0.5;
-    col=mix(uA,uC,smoothstep(0.25,0.75,b1));
-    col=mix(col,uB,b2*0.45);
-    col*=0.88+0.18*b3;
-    // eddies chewing the band edges
-    float edge=1.0-abs(cos(wl*f));
-    float eddy=fbm(q*vec3(9.0,22.0,9.0)+turb*2.0+uTime*0.01);
-    col=mix(col,uC*1.05,smoothstep(0.15,0.7,eddy)*edge*(uId==6?0.5:0.25));
-    col=mix(col,uA*0.85,smoothstep(0.2,0.8,-eddy)*edge*(uId==6?0.35:0.15));
-    if(uId==7) col=mix(col,uC,0.25);
+    // ── gas giants: belts & zones at their real latitudes, sheared edges, vortices ─
+    float fw=length(fwidth(p));
+    float aaF=1.0-smoothstep(0.1,0.3,fw*30.0);
+    float t=uTime*0.01;
+    // bounded zonal wobble (no unbounded shear → no smearing over time)
+    vec3 q=rotY(p,sin(uTime*0.03+p.y*9.0)*0.05);
+    vec3 st=q*vec3(2.6,11.0,2.6);
+    float turb=fbm(st+vec3(0.0,0.0,t))*0.5+fbm3(st*2.3+vec3(t,3.0,0.0))*0.5*aaF;
+    float y=p.y+turb*0.022;
+    float fine=sin(y*95.0+turb*3.0)*0.5+0.5;
+    vec3 c;
+    if(uId==6){
+      vec3 zone=vec3(0.86,0.8,0.69);
+      vec3 belt=vec3(0.5,0.31,0.2);
+      vec3 rust=vec3(0.66,0.42,0.28);
+      vec3 polar=vec3(0.45,0.43,0.41);
+      c=zone;
+      c=mix(c,vec3(0.9,0.78,0.62),1.0-smoothstep(0.0,0.08,abs(y)));            // equatorial zone tint
+      c=mix(c,belt,smoothstep(0.06,0.09,y)*(1.0-smoothstep(0.2,0.25,y)));       // NEB
+      c=mix(c,belt*1.05,smoothstep(-0.26,-0.21,y)*(1.0-smoothstep(-0.1,-0.07,y))); // SEB
+      c=mix(c,rust,smoothstep(0.33,0.36,y)*(1.0-smoothstep(0.42,0.46,y))*0.8); // NTB
+      c=mix(c,rust,smoothstep(-0.46,-0.43,y)*(1.0-smoothstep(-0.37,-0.34,y))*0.7); // STB
+      c=mix(c,polar,smoothstep(0.55,0.75,abs(y)));
+      c*=0.86+0.2*fine*aaF;
+      c*=0.85+0.3*(fbm(q*vec3(14.0,40.0,14.0)*aaF+vec3(t))*0.5+0.5);
+      // festoons & eddies along belt edges
+      float edge=exp(-pow((abs(y)-0.085)/0.02,2.0))+exp(-pow((abs(y)-0.22)/0.025,2.0));
+      float ed=fbm(q*vec3(7.0,16.0,7.0)+vec3(t*2.0,0.0,0.0));
+      c=mix(c,zone*1.04,smoothstep(0.1,0.55,ed)*edge*0.6);
+      c=mix(c,belt*0.8,smoothstep(0.15,0.6,-ed)*edge*0.5);
+      // string of white ovals in the southern temperate band
+      vec3 oq=rotY(q,0.0);
+      float lon=atan(oq.z,oq.x);
+      float cell=floor(lon*3.0);
+      float lc=fract(lon*3.0)-0.5;
+      vec3 rh=hash33(vec3(cell,7.0,uSeed));
+      float oy=(y+0.4+(rh.x-0.5)*0.03)/0.022;
+      float ov=1.0-smoothstep(0.6,1.0,length(vec2(lc/0.18,oy)));
+      c=mix(c,vec3(0.97,0.95,0.9),ov*step(0.4,rh.y)*0.9);
+    } else {
+      vec3 zone=vec3(0.88,0.79,0.6);
+      vec3 belt=vec3(0.7,0.57,0.38);
+      c=mix(zone,belt,smoothstep(0.35,0.65,sin(y*22.0)*0.5+0.5)*0.55);
+      c=mix(c,belt*0.92,smoothstep(0.15,0.3,abs(y))*(1.0-smoothstep(0.3,0.45,abs(y)))*0.35);
+      c=mix(c,vec3(0.62,0.66,0.7),smoothstep(0.72,0.95,y));                   // bluish north polar region
+      c*=0.92+0.12*fine*aaF;
+      c*=0.92+0.16*(fbm(q*vec3(10.0,34.0,10.0)*aaF+vec3(t))*0.5+0.5);
+      // north polar hexagon
+      if(y>0.82){
+        vec2 pq=q.xz/max(sqrt(1.0-q.y*q.y),1e-3)*sqrt(1.0-q.y*q.y);
+        float a=atan(pq.y,pq.x);
+        float hexR=0.36/cos(mod(a,1.0472)-0.5236);
+        float rr=length(pq);
+        c=mix(c,vec3(0.55,0.58,0.6),smoothstep(0.02,0.0,abs(rr-hexR*0.9))*0.6);
+      }
+    }
+    // a touch more saturation so the bands read at distance
+    float g=dot(c,vec3(0.3,0.59,0.11));
+    col=mix(vec3(g),c,1.25);
     wrap=0.12;
   } else {
     // ── ice giants ───────────────────────────────────────────────────
@@ -254,13 +313,13 @@ void main(){
   float term=smoothstep(-0.06,0.12,ndlG); // geometric terminator: bumps never light the night side
   float diffuse;
   if(regolith>0.5){
-    float mu0=max(ndl,0.0); float mu=max(dot(N,V),0.001);
+    float mu0=max(ndl,0.0); float mu=max(dot(Ng,V),0.08);
     float ls=2.0*mu0/(mu0+mu);           // Lommel–Seeliger: flat full-disc look of real regolith
     diffuse=mix(mu0,ls,0.6)*term;
   } else {
     diffuse=max((ndl+wrap)/(1.0+wrap),0.0)*smoothstep(-0.25,0.1,ndlG);
   }
-  if(uId>=6&&uId<=9) diffuse*=mix(0.55,1.0,pow(max(dot(Ng,V),0.0),0.35)); // limb darkening
+  if(uId>=6&&uId<=9) diffuse*=mix(0.45,1.0,pow(max(dot(Ng,V),0.0),0.4))*(uId<=7?0.78:1.0); // limb darkening
   float shadow=1.0-cshadow*0.55;
   // ring shadow on the planet
   if(uRing.y>0.0){
@@ -414,6 +473,92 @@ void main(){
   // forward scattering when looking toward the Sun through the limb
   float fwd=pow(max(dot(rd,normalize(uSun-cameraPosition)),0.0),8.0);
   gl_FragColor=vec4(col*g*(lit+dusk*0.8+fwd*1.5)*uK,1.0);
+  #include <colorspace_fragment>
+}
+`
+
+/** Equirectangular uv of an object-space direction, matching THREE.SphereGeometry. */
+const SPHERE_UV = /* glsl */ `
+vec2 sphereUv(vec3 p){
+  float u=atan(p.z,-p.x)/6.28318530718;
+  return vec2(fract(u),0.5+asin(clamp(p.y,-1.0,1.0))/3.14159265359);
+}
+`
+
+/**
+ * Earth (v3): NASA Blue Marble day map, Black Marble night lights, topography bump,
+ * ocean mask for glint, real cloud map (separate layer) casting shadows.
+ */
+export const EARTH_FRAG = /* glsl */ `
+uniform sampler2D uDay; uniform sampler2D uNight; uniform sampler2D uTopo; uniform sampler2D uWater; uniform sampler2D uClouds;
+uniform vec3 uSun; uniform float uTime; uniform float uR; uniform vec3 uAtmo; uniform float uAtmoK; uniform float uCloudShift;
+varying vec3 vObj; varying vec3 vN; varying vec3 vWorld; varying vec3 vLobj; varying vec2 vUv;
+${COMMON}
+${SPHERE_UV}
+void main(){
+  vec3 Ng=normalize(vN);
+  vec3 L=normalize(uSun-vWorld);
+  vec3 V=normalize(cameraPosition-vWorld);
+  float ndlG=dot(Ng,L);
+  vec3 day=texture2D(uDay,vUv).rgb;
+  float water=texture2D(uWater,vUv).r;
+  float topo=texture2D(uTopo,vUv).r;
+  vec3 N=bump(Ng,vWorld,topo,uR*0.006*(1.0-water));
+  float ndl=dot(N,L);
+  float term=smoothstep(-0.08,0.18,ndlG);
+  // cloud shadow: the cloud map, displaced toward the Sun
+  vec2 suv=sphereUv(normalize(vObj+normalize(vLobj)*0.012));
+  float cs=textureLod(uClouds,suv+vec2(uCloudShift,0.0),2.0).r;
+  float shadow=1.0-cs*0.55;
+  // day side: slightly richer oceans, Lambert land
+  vec3 alb=mix(day,day*vec3(0.75,0.9,1.1),water*0.5);
+  vec3 c=alb*max(ndl,0.0)*term*1.25*shadow;
+  // ocean sun glint + sky reflection
+  vec3 H=normalize(L+V);
+  float nh=max(dot(Ng,H),0.0);
+  float fr=pow(1.0-max(dot(Ng,V),0.0),5.0);
+  c+=water*shadow*term*(vec3(1.0,0.92,0.78)*(pow(nh,220.0)*1.4+pow(nh,30.0)*0.06)+uAtmo*fr*0.2);
+  // night side: Black Marble city lights, warm sodium tint, glow in dense areas
+  vec3 nl=texture2D(uNight,vUv).rgb;
+  float lum=dot(nl,vec3(0.33,0.5,0.17));
+  float lights=max(nl.r-0.02,0.0)*1.1;            // red channel skips the map's navy backdrop
+  vec3 cityCol=mix(vec3(1.0,0.6,0.25),vec3(1.0,0.88,0.66),smoothstep(0.05,0.4,lights));
+  float dark=1.0-smoothstep(-0.2,0.08,ndlG);
+  float glow=max(textureLod(uNight,vUv,4.0).r-0.02,0.0);
+  vec3 nightGround=day*0.012;                        // faint moonlit ground
+  c+=(cityCol*lights*3.2+vec3(1.0,0.5,0.2)*glow*1.6+nightGround)*dark*(1.0-cs*0.75);
+  // atmosphere scattering at the limb, warm near the terminator
+  float fres=pow(1.0-max(dot(Ng,V),0.0),2.4);
+  float dayside=smoothstep(-0.3,0.5,ndlG);
+  float dusk=smoothstep(-0.25,0.05,ndlG)*(1.0-smoothstep(0.05,0.35,ndlG));
+  vec3 sky=mix(uAtmo,vec3(1.0,0.45,0.18),dusk*0.8);
+  c=mix(c,uAtmo*dayside*0.55,fres*0.45*dayside);
+  c+=sky*fres*uAtmoK*(dayside+dusk*0.6)*0.6;
+  gl_FragColor=vec4(c,1.0);
+  #include <colorspace_fragment>
+}
+`
+
+export const EARTH_CLOUD_FRAG = /* glsl */ `
+uniform sampler2D uClouds; uniform vec3 uSun; uniform float uCloudShift;
+varying vec3 vObj; varying vec3 vN; varying vec3 vWorld; varying vec3 vLobj; varying vec2 vUv;
+${COMMON}
+void main(){
+  float c=texture2D(uClouds,vUv+vec2(uCloudShift,0.0)).r;
+  float fw=length(fwidth(vObj));
+  float detail=fbm3(vObj*28.0)*0.5+0.5;
+  c=clamp(c*(0.85+0.3*detail*(1.0-smoothstep(0.05,0.15,fw*28.0))),0.0,1.0);
+  c=smoothstep(0.08,0.95,c);
+  vec3 N=normalize(vN);
+  vec3 L=normalize(uSun-vWorld);
+  vec3 V=normalize(cameraPosition-vWorld);
+  float ndl=dot(N,L);
+  float lit=smoothstep(-0.12,0.4,ndl);
+  float dusk=smoothstep(-0.2,0.05,ndl)*(1.0-smoothstep(0.05,0.3,ndl));
+  vec3 col=mix(vec3(1.0),vec3(1.0,0.55,0.3),dusk)*(0.015+lit*1.1);
+  float edge=pow(1.0-max(dot(N,V),0.0),3.0);
+  float a=c*(0.95-edge*0.4);
+  gl_FragColor=vec4(col*a,a);
   #include <colorspace_fragment>
 }
 `
