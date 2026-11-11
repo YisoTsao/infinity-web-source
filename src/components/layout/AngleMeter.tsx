@@ -51,6 +51,9 @@ export function AngleMeter() {
     { dependencies: [pathname], revertOnUpdate: true },
   )
 
+  // the cosmos page has its own instruments (AU / velocity)
+  if (pathname?.startsWith('/cosmos')) return null
+
   return (
     <div className="frame-x pointer-events-none fixed inset-x-0 bottom-5 z-30 flex justify-end text-bone mix-blend-difference md:bottom-7">
       <div className="mask">

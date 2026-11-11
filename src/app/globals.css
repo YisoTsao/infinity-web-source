@@ -269,4 +269,79 @@ html[data-cursor-state="text"] .cursor__ring-shape { width: 2px; height: 24px; b
 html[data-motion="off"] .grain__tile,
 html[data-motion="off"] .scroll-indicator__ring { animation: none; }
 
+
+/* ── ORBIT ∞ (cosmos page) ─────────────────────────────────────────── */
+.cosmos { background: #020205; }
+.cosmos-track { height: calc(13 * 165svh); }
+@media (max-width: 1023px) { .cosmos-track { height: calc(13 * 125svh); } }
+.cosmos-intro { opacity: 0; }
+html.js .cosmos-intro { opacity: 1; }
+.cosmos-nogl {
+  background:
+    radial-gradient(1px 1px at 12% 22%, #fff8 50%, transparent 51%),
+    radial-gradient(1px 1px at 72% 64%, #fff6 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 38% 80%, #fff9 50%, transparent 51%),
+    radial-gradient(1px 1px at 88% 14%, #fff7 50%, transparent 51%),
+    #020205;
+  background-size: 240px 240px, 310px 310px, 420px 420px, 190px 190px;
+}
+.cosmos-panel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding-top: clamp(96px, 14vh, 150px);
+  padding-bottom: clamp(88px, 13vh, 132px);
+}
+.cosmos-panel__data { align-self: flex-end; }
+.cosmos-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(120% 70% at 0% 100%, #020205b3 0%, #02020566 35%, transparent 65%);
+}
+.cosmos-name {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: min(clamp(3.4rem, 13vw, 15.5rem), calc((100vw - 2 * var(--frame)) / (var(--len, 6) * 1.22)));
+  white-space: nowrap;
+  line-height: 0.8;
+  letter-spacing: -0.05em;
+  margin-left: -0.04em;
+  text-shadow: 0 0 1px #0004;
+}
+.cosmos-name * { white-space: nowrap; }
+.cosmos-name .ch-mask, .cosmos-name > span > div { padding-block: 0.06em; margin-block: -0.06em; }
+.cosmos-emotive {
+  font-size: clamp(2rem, 6vw, 6.5rem);
+  line-height: 0.9;
+  margin-top: -0.12em;
+  margin-left: clamp(0.5rem, 6vw, 7rem);
+  color: var(--color-signal);
+}
+.cosmos-hud {
+  position: absolute;
+  left: 0;
+  top: clamp(72px, 9vh, 96px);
+}
+.cosmos-rail {
+  position: absolute;
+  inset-inline: 0;
+  bottom: clamp(20px, 3.4vh, 32px);
+}
+.cosmos-tick { color: color-mix(in oklab, var(--color-bone) 35%, transparent); transition: color .4s; font-size: 0.62rem; }
+.cosmos-tick.is-on { color: var(--color-signal); }
+@media (max-width: 767px) {
+  .cosmos-panel { justify-content: flex-end; gap: 1.5rem; }
+  .cosmos-name { font-size: calc((100vw - 2 * var(--frame)) / (var(--len, 6) * 1.22)); }
+  .cosmos-panel__data { order: 2; align-self: stretch; }
+  .cosmos-panel::before { background: linear-gradient(to top, #020205e6 0%, #02020599 40%, transparent 70%); }
+  .cosmos-panel__data dl > div { justify-content: space-between; }
+  .cosmos-tick { font-size: 0.5rem; letter-spacing: 0; }
+  .cosmos-hud { top: 64px; }
+}
+
 }
