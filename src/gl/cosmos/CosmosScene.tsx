@@ -8,8 +8,9 @@ import { cosmosState } from '@/stores/cosmos'
 import { useUI, selectReduced, type Tier } from '@/stores/ui'
 import { pointer } from '@/motion/pointer'
 import { frameAt, chapterAt, type Frame } from './shots'
+import { SURFACE_VERT, SURFACE_FRAG, CLOUD_FRAG, SUN_FRAG, FLAME_VERT, FLAME_FRAG, HALO2_FRAG, BODY_ID } from './surfaces'
 import {
-  PLANET_VERT, PLANET_FRAG, HALO_FRAG, RING_VERT, RING_FRAG, STAR_VERT, STAR_FRAG, NEBULA_FRAG,
+  PLANET_VERT, RING_VERT, RING_FRAG, STAR_VERT, STAR_FRAG, NEBULA_FRAG,
   DUST_VERT, DUST_POINT_FRAG, DUST_LINE_FRAG, METEOR_VERT, METEOR_FRAG,
 } from './glsl'
 
@@ -20,7 +21,6 @@ const Q = {
 } satisfies Record<Tier, Record<string, number>>
 
 const SUN = new THREE.Vector3(...BODIES.sun.pos)
-const KIND = { star: 0, rocky: 1, venus: 2, earth: 3, gas: 4, ice: 5 } as const
 
 /** Seeded PRNG so every visit builds the same sky. */
 function rng(seed: number) {
@@ -322,40 +322,59 @@ function Meteors({ enabled }: { enabled: boolean }) {
 
 // ─── Planets ─────────────────────────────────────────────────────────────
 const SPOTS: Record<string, { dir: [number, number, number]; size: number; color: string }> = {
-  jupiter: { dir: [0.45, -0.36, 0.82], size: 0.13, color: '#c2502e' },
-  neptune: { dir: [-0.4, -0.38, 0.83], size: 0.1, color: '#0a1550' },
-  pluto: { dir: [0.3, 0.12, 0.95], size: 0.42, color: '#f4e9da' },
+  jupiter: { dir: [0.45, -0.36, 0.82], size: 0.13, color: '#b9472a' },
+  neptune: { dir: [-0.4, -0.38, 0.83], size: 0.1, color: '#081045' },
+  pluto: { dir: [0.3, 0.12, 0.95], size: 0.5, color: '#f4ece0' },
 }
 
 function planetMaterial(b: Body) {
   const spot = SPOTS[b.id]
+  const ringN = new THREE.Vector3(0, 1, 0).applyEuler(new THREE.Euler(0, 0, b.tilt ?? 0))
   return new THREE.ShaderMaterial({
-    vertexShader: PLANET_VERT,
-    fragmentShader: PLANET_FRAG,
+    vertexShader: SURFACE_VERT,
+    fragmentShader: SURFACE_FRAG,
     uniforms: {
-      uKind: { value: KIND[b.kind] },
+      uId: { value: BODY_ID[b.id as keyof typeof BODY_ID] ?? 1 },
       uA: { value: new THREE.Color(b.colors[0]) },
       uB: { value: new THREE.Color(b.colors[1]) },
       uC: { value: new THREE.Color(b.colors[2]) },
       uSun: { value: SUN },
       uTime: { value: 0 },
       uSeed: { value: b.seed },
+      uR: { value: b.radius },
       uAtmo: { value: new THREE.Color(b.atmo ?? '#000000') },
       uAtmoK: { value: b.atmoStrength ?? 0 },
       uSpot: { value: spot ? new THREE.Vector4(...new THREE.Vector3(...spot.dir).normalize().toArray(), spot.size) : new THREE.Vector4(0, 0, 1, 0) },
       uSpotCol: { value: new THREE.Color(spot?.color ?? '#000000') },
+      uCenter: { value: new THREE.Vector3(...b.pos) },
+      uRingN: { value: ringN },
+      uRing: { value: b.id === 'saturn' && b.rings ? new THREE.Vector2(b.rings.inner * b.radius, b.rings.outer * b.radius) : new THREE.Vector2(0, 0) },
     },
   })
 }
 
 function Planet({ body, sphere }: { body: Body; sphere: THREE.BufferGeometry }) {
-  const spin = useRef<THREE.Mesh>(null)
+  const spin = useRef<THREE.Group>(null)
   const mat = useMemo(() => planetMaterial(body), [body])
+  const clouds = useMemo(() => {
+    if (body.id !== 'earth') return null
+    return new THREE.ShaderMaterial({
+      vertexShader: SURFACE_VERT,
+      fragmentShader: CLOUD_FRAG,
+      uniforms: { uSun: { value: SUN }, uTime: { value: 0 } },
+      transparent: true,
+      depthWrite: false,
+      premultipliedAlpha: true,
+      blending: THREE.CustomBlending,
+      blendSrc: THREE.OneFactor,
+      blendDst: THREE.OneMinusSrcAlphaFactor,
+    })
+  }, [body])
   const halo = useMemo(() => {
     if (!body.atmo) return null
     return new THREE.ShaderMaterial({
       vertexShader: PLANET_VERT,
-      fragmentShader: HALO_FRAG,
+      fragmentShader: HALO2_FRAG,
       uniforms: {
         uCenter: { value: new THREE.Vector3(...body.pos) },
         uR: { value: body.radius },
@@ -373,7 +392,7 @@ function Planet({ body, sphere }: { body: Body; sphere: THREE.BufferGeometry }) 
   const ring = useMemo(() => {
     if (!body.rings) return null
     const { inner, outer, opacity, tint } = body.rings
-    const geo = new THREE.RingGeometry(inner * body.radius, outer * body.radius, 192, 1)
+    const geo = new THREE.RingGeometry(inner * body.radius, outer * body.radius, 256, 1)
     const mat = new THREE.ShaderMaterial({
       vertexShader: RING_VERT,
       fragmentShader: RING_FRAG,
@@ -397,22 +416,27 @@ function Planet({ body, sphere }: { body: Body; sphere: THREE.BufferGeometry }) 
   useEffect(
     () => () => {
       mat.dispose()
+      clouds?.dispose()
       halo?.dispose()
       ring?.geo.dispose()
       ring?.mat.dispose()
     },
-    [mat, halo, ring],
+    [mat, clouds, halo, ring],
   )
 
   useFrame((state, delta) => {
     mat.uniforms.uTime.value = state.clock.elapsedTime
+    if (clouds) clouds.uniforms.uTime.value = state.clock.elapsedTime
     if (spin.current) spin.current.rotation.y += (body.spin ?? 0) * Math.min(delta, 0.05)
   })
 
   return (
     <group position={body.pos} rotation={[0, 0, body.tilt ?? 0]}>
-      <mesh ref={spin} geometry={sphere} material={mat} scale={body.radius} />
-      {halo && <mesh geometry={sphere} material={halo} scale={body.radius * 1.14} />}
+      <group ref={spin}>
+        <mesh geometry={sphere} material={mat} scale={body.radius} />
+        {clouds && <mesh geometry={sphere} material={clouds} scale={body.radius * 1.012} renderOrder={1} />}
+      </group>
+      {halo && <mesh geometry={sphere} material={halo} scale={body.radius * 1.14} renderOrder={2} />}
       {ring && <mesh geometry={ring.geo} material={ring.mat} rotation={[-Math.PI / 2, 0, 0]} renderOrder={2} />}
     </group>
   )
@@ -426,6 +450,9 @@ function Moon({ sphere }: { sphere: THREE.BufferGeometry }) {
   useFrame((state) => {
     const a = state.clock.elapsedTime * 0.12 + 2.2
     ref.current!.position.set(e[0] + Math.cos(a) * 15, e[1] + Math.sin(a * 0.7) * 2.5, e[2] + Math.sin(a) * 15)
+    // tidally locked: the same face always looks at Earth
+    ref.current!.rotation.y = -a + Math.PI / 2
+    mat.uniforms.uCenter.value.copy(ref.current!.position)
   })
   return <mesh ref={ref} geometry={sphere} material={mat} scale={BODIES.moon.radius} />
 }
@@ -440,48 +467,58 @@ function canvasTexture(size: number, draw: (g: CanvasRenderingContext2D, s: numb
 }
 
 function Sun({ sphere }: { sphere: THREE.BufferGeometry }) {
-  const mat = useMemo(() => planetMaterial(BODIES.sun), [])
-  const rays = useRef<THREE.Sprite>(null)
-  const { glow, ray } = useMemo(() => {
-    const glow = canvasTexture(256, (g, s) => {
-      const gr = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2)
-      gr.addColorStop(0, 'rgba(255,240,200,1)')
-      gr.addColorStop(0.12, 'rgba(255,190,90,0.85)')
-      gr.addColorStop(0.3, 'rgba(255,120,40,0.28)')
-      gr.addColorStop(0.6, 'rgba(255,80,20,0.07)')
-      gr.addColorStop(1, 'rgba(0,0,0,0)')
-      g.fillStyle = gr
-      g.fillRect(0, 0, s, s)
-    })
-    const ray = canvasTexture(512, (g, s) => {
-      g.translate(s / 2, s / 2)
-      const r = rng(3)
-      for (let i = 0; i < 48; i++) {
-        g.rotate((Math.PI * 2) / 48 + r() * 0.05)
-        const len = s * (0.18 + r() * 0.32)
-        const gr = g.createLinearGradient(0, 0, len, 0)
-        gr.addColorStop(0, 'rgba(255,220,160,0.5)')
-        gr.addColorStop(1, 'rgba(255,160,80,0)')
-        g.fillStyle = gr
-        g.fillRect(0, -0.6 - r() * 1.4, len, 1.2 + r() * 2.8)
-      }
-    })
-    return { glow, ray }
-  }, [])
-  useEffect(() => () => (mat.dispose(), glow.dispose(), ray.dispose()), [mat, glow, ray])
-  useFrame((state) => {
-    mat.uniforms.uTime.value = state.clock.elapsedTime
-    if (rays.current) rays.current.material.rotation = state.clock.elapsedTime * 0.01
-  })
   const R = BODIES.sun.radius
+  const FLAME = R * 2.4
+  const flameMesh = useRef<THREE.Mesh>(null)
+  const mat = useMemo(
+    () => new THREE.ShaderMaterial({ vertexShader: SURFACE_VERT, fragmentShader: SUN_FRAG, uniforms: { uTime: { value: 0 }, uSun: { value: SUN } } }),
+    [],
+  )
+  const flame = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        vertexShader: FLAME_VERT,
+        fragmentShader: FLAME_FRAG,
+        uniforms: { uTime: { value: 0 }, uDisc: { value: 0.4 } },
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    [],
+  )
+  const glow = useMemo(
+    () =>
+      canvasTexture(256, (g, s) => {
+        const gr = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2)
+        gr.addColorStop(0, 'rgba(255,240,200,1)')
+        gr.addColorStop(0.14, 'rgba(255,190,90,0.8)')
+        gr.addColorStop(0.32, 'rgba(255,120,40,0.24)')
+        gr.addColorStop(0.62, 'rgba(255,80,20,0.06)')
+        gr.addColorStop(1, 'rgba(0,0,0,0)')
+        g.fillStyle = gr
+        g.fillRect(0, 0, s, s)
+      }),
+    [],
+  )
+  useEffect(() => () => (mat.dispose(), flame.dispose(), glow.dispose()), [mat, flame, glow])
+  useFrame((state) => {
+    const t = state.clock.elapsedTime
+    mat.uniforms.uTime.value = t
+    flame.uniforms.uTime.value = t
+    const m = flameMesh.current!
+    // billboard through the Sun's centre; size the disc to the true silhouette at this distance
+    m.quaternion.copy(state.camera.quaternion)
+    const d = Math.max(state.camera.position.distanceTo(SUN), R * 1.05)
+    flame.uniforms.uDisc.value = (R * d) / Math.sqrt(d * d - R * R) / FLAME
+  })
   return (
     <group>
       <mesh geometry={sphere} material={mat} scale={R} />
-      <sprite scale={[R * 9, R * 9, 1]} renderOrder={3}>
-        <spriteMaterial map={glow} blending={THREE.AdditiveBlending} depthWrite={false} transparent />
-      </sprite>
-      <sprite ref={rays} scale={[R * 7, R * 7, 1]} renderOrder={3}>
-        <spriteMaterial map={ray} blending={THREE.AdditiveBlending} depthWrite={false} transparent opacity={0.7} />
+      <mesh ref={flameMesh} material={flame} renderOrder={3} frustumCulled={false}>
+        <planeGeometry args={[FLAME * 2, FLAME * 2]} />
+      </mesh>
+      <sprite scale={[R * 9, R * 9, 1]} renderOrder={4}>
+        <spriteMaterial map={glow} blending={THREE.AdditiveBlending} depthWrite={false} transparent opacity={0.85} />
       </sprite>
       <pointLight position={[0, 0, 0]} intensity={2.4} decay={0} color="#fff1dc" />
     </group>
