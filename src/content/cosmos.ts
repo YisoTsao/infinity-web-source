@@ -30,9 +30,9 @@ export const BODIES: Record<string, Body> = {
   earth: { id: 'earth', kind: 'earth', pos: [-30, 5, -800], radius: 5.5, colors: ['#0b2a5a', '#2f7d45', '#d9cfa8'], atmo: '#5fa8ff', atmoStrength: 1.4, seed: 4, spin: 0.06, tilt: 0.41 },
   moon: { id: 'moon', kind: 'rocky', pos: [-30, 5, -800], radius: 1.5, colors: ['#34322f', '#8d8a85', '#c9c5be'], seed: 9, spin: 0.02 },
   mars: { id: 'mars', kind: 'rocky', pos: [28, -4, -1080], radius: 4, colors: ['#5a1f0e', '#b5512a', '#e39a6a'], atmo: '#ff9a6a', atmoStrength: 0.25, seed: 5, spin: 0.06, tilt: 0.44 },
-  jupiter: { id: 'jupiter', kind: 'gas', pos: [-40, 0, -1750], radius: 22, colors: ['#7a4e32', '#d4a373', '#f3e3c6'], atmo: '#f5d8a8', atmoStrength: 0.6, seed: 6, spin: 0.08, tilt: 0.05 },
+  jupiter: { id: 'jupiter', kind: 'gas', pos: [-40, 0, -1750], radius: 22, colors: ['#7a4e32', '#d4a373', '#f3e3c6'], atmo: '#f5d8a8', atmoStrength: 0.14, seed: 6, spin: 0.08, tilt: 0.05 },
   saturn: {
-    id: 'saturn', kind: 'gas', pos: [45, 8, -2150], radius: 18, colors: ['#8a6a3e', '#d9bf8a', '#f6ead0'], atmo: '#f7e2b0', atmoStrength: 0.5, seed: 7, spin: 0.07, tilt: 0.47,
+    id: 'saturn', kind: 'gas', pos: [45, 8, -2150], radius: 18, colors: ['#8a6a3e', '#d9bf8a', '#f6ead0'], atmo: '#f7e2b0', atmoStrength: 0.12, seed: 7, spin: 0.07, tilt: 0.47,
     rings: { inner: 1.25, outer: 2.35, opacity: 0.95, tint: '#e8d7b0' },
   },
   uranus: {
