@@ -85,6 +85,13 @@ export function MenuOverlay() {
                   </motion.li>
                 ))}
               </ul>
+              <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={t(0.6)} className="mt-12">
+                <p className="meta mb-3 text-fog-ink">Another loop</p>
+                <TransitionLink href="/cosmos" label="ORBIT ∞" onClick={close} className="group flex items-baseline gap-3">
+                  <span className="font-display text-[clamp(1.8rem,3.4vw,3rem)] font-bold leading-none tracking-tight transition-colors group-hover:text-signal">ORBIT ∞</span>
+                  <span className="zh text-fog-ink">深空巡航</span>
+                </TransitionLink>
+              </motion.div>
               <p className="zh mt-12 max-w-[28ch] text-fog-ink">捲動不是一條線，而是一個環。按 Esc 關閉。</p>
             </div>
           </div>

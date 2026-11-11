@@ -9,6 +9,7 @@ const LINKS = [
   { label: 'Work', href: '/#work', angle: '130°' },
   { label: 'Forms', href: '/#forms', angle: '200°' },
   { label: 'Contact', href: '/#contact', angle: '330°' },
+  { label: 'Cosmos', href: '/cosmos', angle: 'AU' },
 ]
 
 /** Items are wrapped in masks so the hero entrance timeline can slide them in ([data-nav-item]). */
